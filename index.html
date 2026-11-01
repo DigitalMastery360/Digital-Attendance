@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Student QR Attendance</title>
+  <title>Digital Attendance System</title>
 
   <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -28,27 +28,129 @@
     }
 
     #result {
-      font-size: 18px;
-      font-weight: bold;
-      margin-top: 20px;
-      color: #123b63;
+      max-width: 450px;
+      margin: 20px auto;
+      padding: 15px;
+      background: white;
+      border-radius: 8px;
+      text-align: left;
+      line-height: 1.8;
+      overflow-wrap: anywhere;
+    }
+
+    .success {
+      color: green;
+    }
+
+    .error {
+      color: red;
     }
   </style>
 </head>
 
 <body>
-  <h2>Student QR Attendance</h2>
-  <p>Scan your student ID QR code</p>
+  <h2>Digital Attendance System</h2>
+  <p>Scan Student ID QR Code</p>
 
   <div id="reader"></div>
   <div id="result">Waiting for scan...</div>
 
   <script>
-    function onScanSuccess(decodedText) {
-      document.getElementById("result").innerText =
-        "Scanned Student ID: " + decodedText;
+    const API_URL =
+      "https://script.google.com/macros/s/AKfycbyjashEaUZ5620H4rYDss9FVazG2haTrarFdCr7SOcTV1n2RoxdW3aKhH4ZD-FSypn13w/exec";
 
-      scanner.clear();
+    let scanning = false;
+
+    function showResult(message, className = "") {
+      const result = document.getElementById("result");
+      result.className = className;
+      result.innerHTML = message;
+    }
+
+    function extractStudentId(qrText) {
+      const match = qrText.match(/Student ID:\s*(\d+)/i);
+
+      if (match) {
+        return match[1];
+      }
+
+      if (/^\d+$/.test(qrText.trim())) {
+        return qrText.trim();
+      }
+
+      return null;
+    }
+
+    function onScanSuccess(decodedText) {
+      if (scanning) return;
+
+      scanning = true;
+
+      const studentId = extractStudentId(decodedText);
+
+      if (!studentId) {
+        showResult(
+          "Invalid QR Code.<br>Please scan a valid Student ID QR code.",
+          "error"
+        );
+
+        setTimeout(() => {
+          scanning = false;
+        }, 2500);
+
+        return;
+      }
+
+      showResult("Searching student record...", "");
+
+      const callbackName =
+        "attendanceCallback_" + Date.now();
+
+      window[callbackName] = function(data) {
+        delete window[callbackName];
+
+        if (data.success) {
+          showResult(
+            "<strong>Student ID:</strong> " + data.studentId +
+            "<br><strong>Name:</strong> " + data.studentName +
+            "<br><strong>Course:</strong> " + data.course +
+            "<br><strong>Batch:</strong> " + data.batch +
+            "<br><strong>Status:</strong> " + data.status,
+            "success"
+          );
+        } else {
+          showResult(
+            "Student not found.<br>ID: " + studentId,
+            "error"
+          );
+        }
+
+        setTimeout(() => {
+          scanning = false;
+        }, 3000);
+      };
+
+      const script = document.createElement("script");
+
+      script.src =
+        API_URL +
+        "?id=" + encodeURIComponent(studentId) +
+        "&callback=" + callbackName;
+
+      script.onerror = function() {
+        delete window[callbackName];
+
+        showResult(
+          "Connection error. Please try again.",
+          "error"
+        );
+
+        setTimeout(() => {
+          scanning = false;
+        }, 3000);
+      };
+
+      document.body.appendChild(script);
     }
 
     const scanner = new Html5QrcodeScanner(
