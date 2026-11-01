@@ -107,27 +107,87 @@
         "attendanceCallback_" + Date.now();
 
       window[callbackName] = function(data) {
-        delete window[callbackName];
+ window[callbackName] = function(data) {
+  delete window[callbackName];
 
-        if (data.success) {
-          showResult(
-            "<strong>Student ID:</strong> " + data.studentId +
-            "<br><strong>Name:</strong> " + data.studentName +
-            "<br><strong>Course:</strong> " + data.course +
-            "<br><strong>Batch:</strong> " + data.batch +
-            "<br><strong>Status:</strong> " + data.status,
-            "success"
-          );
-        } else {
-          showResult(
-            "Student not found.<br>ID: " + studentId,
-            "error"
-          );
-        }
+  if (data.success) {
+    if (data.status.toLowerCase() !== "active") {
+      showResult(
+        "Student is not Active.<br>ID: " + data.studentId,
+        "error"
+      );
 
-        setTimeout(() => {
-          scanning = false;
-        }, 3000);
+      setTimeout(() => {
+        scanning = false;
+      }, 3000);
+
+      return;
+    }
+
+    showResult("Recording attendance...", "");
+
+    const attendanceCallback =
+      "attendanceCallback_" + Date.now();
+
+    window[attendanceCallback] = function(attendanceData) {
+      delete window[attendanceCallback];
+
+      if (attendanceData.success) {
+        showResult(
+          "<strong>Attendance Recorded!</strong>" +
+          "<br><strong>Student ID:</strong> " + attendanceData.studentId +
+          "<br><strong>Name:</strong> " + attendanceData.studentName +
+          "<br><strong>Date:</strong> " + attendanceData.date +
+          "<br><strong>Time:</strong> " + attendanceData.time,
+          "success"
+        );
+      } else {
+        showResult(
+          "Attendance Error:<br>" + attendanceData.message,
+          "error"
+        );
+      }
+
+      setTimeout(() => {
+        scanning = false;
+      }, 3000);
+    };
+
+    const attendanceScript = document.createElement("script");
+
+    attendanceScript.src =
+      API_URL +
+      "?action=attendance&id=" +
+      encodeURIComponent(data.studentId) +
+      "&callback=" +
+      attendanceCallback;
+
+    attendanceScript.onerror = function() {
+      delete window[attendanceCallback];
+
+      showResult(
+        "Attendance connection error. Please try again.",
+        "error"
+      );
+
+      setTimeout(() => {
+        scanning = false;
+      }, 3000);
+    };
+
+    document.body.appendChild(attendanceScript);
+
+  } else {
+    showResult(
+      "Student not found.<br>ID: " + studentId,
+      "error"
+    );
+
+    setTimeout(() => {
+      scanning = false;
+    }, 3000);
+  }
+};
       };
 
       const script = document.createElement("script");
